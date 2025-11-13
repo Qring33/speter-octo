@@ -1,0 +1,12 @@
+{
+  "name": "facebook-bot",
+  "version": "1.0.0",
+  "description": "Automated Facebook signup with email generation and Dropbox backup",
+  "main": "main.js",
+  "scripts": {},
+  "dependencies": {
+    "playwright": "^1.56.1",
+    "dropbox": "^10.34.0",
+    "node-fetch": "^2.7.0"
+  }
+}
