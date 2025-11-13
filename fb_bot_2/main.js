@@ -3,7 +3,36 @@ const fs = require('fs');
 const path = require('path');
 const os = require('os');
 const Dropbox = require('dropbox').Dropbox;
-global.fetch = require('node-fetch'); // Required for Dropbox
+global.fetch = require('node-fetch'); // Required for Dropbox SDK
+
+// === DROPBOX REFRESH TOKEN CONFIG (NO token.txt) ===
+const DROPBOX_REFRESH_TOKEN = 'aKyyc46BzjsAAAAAAAAAAflNqCXbvJtQ75QkrOK3GGJKTEHbE6bq__b-tPQ7tpVH';
+const DROPBOX_APP_KEY = '89qh2irwhtm9nh3';
+const DROPBOX_APP_SECRET = 'n3al44m84jg1i3q';
+
+// === REFRESH ACCESS TOKEN FUNCTION ===
+async function getFreshAccessToken() {
+  const auth = Buffer.from(`${DROPBOX_APP_KEY}:${DROPBOX_APP_SECRET}`).toString('base64');
+  const response = await fetch('https://api.dropbox.com/oauth2/token', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Basic ${auth}`,
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+    body: new URLSearchParams({
+      grant_type: 'refresh_token',
+      refresh_token: DROPBOX_REFRESH_TOKEN,
+    }),
+  });
+
+  if (!response.ok) {
+    const err = await response.text();
+    throw new Error(`Token refresh failed: ${response.status} ${err}`);
+  }
+
+  const data = await response.json();
+  return data.access_token;
+}
 
 // === USER AGENT LOADER ===
 const uaPath = path.resolve(__dirname, 'user_agents.txt');
@@ -47,10 +76,10 @@ console.log(`Loaded ${validUAs.length} valid modern desktop UAs.`);
   };
 
   try {
-    // === Load Dropbox Token ===
-    const tokenPath = path.resolve(__dirname, 'token.txt');
-    if (!fs.existsSync(tokenPath)) throw new Error('token.txt not found');
-    const accessToken = fs.readFileSync(tokenPath, 'utf8').trim();
+    // === GET FRESH DROPBOX ACCESS TOKEN (NO token.txt) ===
+    console.log('Refreshing Dropbox access token...');
+    const accessToken = await getFreshAccessToken();
+    console.log('Access token refreshed successfully.');
     const dbx = new Dropbox({ accessToken });
 
     // === Load used sessions path ===
@@ -256,7 +285,7 @@ console.log(`Loaded ${validUAs.length} valid modern desktop UAs.`);
       console.log('Follow button not found. Continuing...');
     }
 
-    // === PROCESS VIDEOS 1 to 5 USING aria-posinset (FORCE SWITCH) ===
+    // === PROCESS VIDEOS 1 to 2 USING aria-posinset (FORCE SWITCH) ===
     const processedVideos = new Set(); // Prevent re-processing
 
     for (let pos = 1; pos <= 2; pos++) {
@@ -375,18 +404,39 @@ console.log(`Loaded ${validUAs.length} valid modern desktop UAs.`);
       }
     }
 
-    // === SAVE UPDATED SESSION BACK TO DROPBOX ===
+    // === SAVE UPDATED SESSION BACK TO DROPBOX (DIRECT FETCH - SDK BUG FIX) ===
     const updatedSessionPath = path.join(os.tmpdir(), `updated_${randomSession}`);
     await context.storageState({ path: updatedSessionPath });
     console.log(`Saving updated session: ${randomSession}`);
 
     const fileContent = fs.readFileSync(updatedSessionPath);
-    await dbx.filesUpload({
-      path: `/session/${randomSession}`,
-      contents: fileContent,
-      mode: { '.tag': 'overwrite' }
-    });
-    console.log(`Session ${randomSession} saved back to Dropbox.`);
+
+    try {
+      const uploadResponse = await fetch('https://content.dropboxapi.com/2/files/upload', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Dropbox-API-Arg': JSON.stringify({
+            path: `/session/${randomSession}`,
+            mode: 'overwrite',
+            autorename: false,
+            mute: false
+          }),
+          'Content-Type': 'application/octet-stream',
+        },
+        body: fileContent
+      });
+
+      if (!uploadResponse.ok) {
+        const errText = await uploadResponse.text();
+        throw new Error(`Upload failed: ${uploadResponse.status} ${errText}`);
+      }
+
+      console.log(`Session ${randomSession} saved back to Dropbox (via direct fetch).`);
+    } catch (uploadErr) {
+      console.error('Upload failed:', uploadErr.message);
+      throw uploadErr;
+    }
 
     // === Mark session as used ===
     fs.appendFileSync(usedPath, `${randomSession}\n`);
