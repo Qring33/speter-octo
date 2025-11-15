@@ -25,8 +25,9 @@ function runDownloader() {
     runMainScripts();
   });
 
-  p.on("error", () => {
-    runMainScripts();
+  p.on("error", (err) => {
+    console.error("downloader.py failed:", err);
+    runMainScripts(); // Continue anyway
   });
 }
 
@@ -37,7 +38,7 @@ function runMainScripts() {
   const script = scripts[currentScriptIndex];
 
   if (!script) {
-    return runUploadFinal(); // All scripts done → Move to final Python scripts
+    return runUploadFinal();
   }
 
   if (currentRun >= totalRunsPerScript) {
@@ -81,13 +82,14 @@ function runUploadFinal() {
     runPushFinal();
   });
 
-  up.on("error", () => {
+  up.on("error", (err) => {
+    console.error("upload.py failed:", err);
     runPushFinal();
   });
 }
 
 // ---------------------------
-// STEP 4 — Run push.py ONCE
+// STEP 4 — Run push.py ONCE (final step)
 // ---------------------------
 function runPushFinal() {
   console.log("\nRunning push.py (final step, only once)...\n");
@@ -96,21 +98,18 @@ function runPushFinal() {
   pp.stdout.on("data", (d) => process.stdout.write(d));
   pp.stderr.on("data", (d) => process.stderr.write(d));
 
-  pp.on("close", () => {
-    clearTerminal();
+  pp.on("close", (code) => {
+    if (code === 0) {
+      console.log("\nAll tasks completed successfully!\n");
+    } else {
+      console.log(`\npush.py exited with code ${code}\n`);
+    }
   });
 
-  pp.on("error", () => {
-    clearTerminal();
+  pp.on("error", (err) => {
+    console.error("\nFailed to start push.py:", err);
+    console.log("\nSequence finished with errors.\n");
   });
-}
-
-// ---------------------------
-// STEP 5 — Clear terminal logs
-// ---------------------------
-function clearTerminal() {
-  console.clear();  
-  console.log("All tasks completed successfully. Logs cleared.\n");
 }
 
 // Start execution
