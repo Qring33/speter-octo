@@ -1,6 +1,7 @@
 import base64
 import json
 import requests
+import os  # ← Added this import (this was the only thing missing)
 
 # === FETCH TOKEN FROM DROPBOX (automatically at runtime) ===
 DROPBOX_RAW_URL = "https://www.dropbox.com/scl/fi/e3k4f55zpny41ptw2pbrz/git_token.txt?rlkey=nfsxxwlkponq4qoqimrbu9xns&st=npwv1f1o&dl=1"
@@ -26,7 +27,7 @@ FILEPATH_LOCAL = "FB_account.json"                    # Local file to upload
 FILEPATH_REPO = "fb_bot/FB_account.json"              # Path inside the GitHub repo
 
 # === Read and encode the local file ===
-if not requests.path.isfile(FILEPATH_LOCAL):
+if not os.path.isfile(FILEPATH_LOCAL):  # ← Fixed: was requests.path.isfile
     raise SystemExit(f"[ERROR] Local file not found: {FILEPATH_LOCAL}")
 
 with open(FILEPATH_LOCAL, "rb") as f:
