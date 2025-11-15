@@ -8,7 +8,7 @@ const delayBetweenRuns = 2000;
 let currentScriptIndex = 0;
 let currentRun = 0;
 
-console.log("Starting sequence — main.js loops → push.py → clear logs\n");
+console.log("Starting sequence — main.js loops → push.py\n");
 
 // ---------------------------
 // STEP 1 — Loop main.js N times
@@ -58,28 +58,13 @@ function runPushFinal() {
   pp.stderr.on("data", (d) => process.stderr.write(d));
 
   pp.on("close", () => {
-    clearTerminal();
+    console.log("\nAll tasks completed.\n");
   });
 
-  pp.on("error", () => {
-    clearTerminal();
+  pp.on("error", (err) => {
+    console.error("push.py encountered an error:", err);
+    console.log("\nSequence finished with errors.\n");
   });
-}
-
-// ---------------------------
-// STEP 3 — Force clear terminal logs
-// ---------------------------
-function clearTerminal() {
-  // Hard reset — clears everything in almost all terminals
-  process.stdout.write('\x1Bc');
-
-  // Clear scrollback + screen fully
-  process.stdout.write('\x1B[2J\x1B[3J\x1B[H');
-
-  // Fallback
-  console.clear();
-
-  console.log("All tasks completed. Logs cleared.\n");
 }
 
 // Start execution
