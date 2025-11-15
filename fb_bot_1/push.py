@@ -4,7 +4,7 @@ import requests
 import os
 
 # --- Configuration ---
-TOKEN = "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"  # Replace with new token after revoking the old one
+TOKEN = "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"  # Replace with new token after revoking the old one
 USERNAME = "Qring33"
 REPO = "speter-octo"
 BRANCH = "main"
