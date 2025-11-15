@@ -3,7 +3,7 @@ import json
 import requests
 
 # --- Configuration ---
-TOKEN = "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"
+TOKEN = "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"
 USERNAME = "Qring33"
 REPO = "speter-octo"
 BRANCH = "main"  # or whichever branch you want
