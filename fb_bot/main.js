@@ -128,7 +128,7 @@ const { execSync } = require('child_process');
 
     // === OTP RETRIEVAL FUNCTION ===
     const getOtp = async () => {
-      for (let attempt = 1; attempt <= 4; attempt++) {
+      for (let attempt = 1; attempt <= 15; attempt++) {
         try {
           const cmd = `python3 zohomail.py inbox ${email}`;
           console.log(`[OTP Attempt ${attempt}] Running: ${cmd}`);
@@ -146,7 +146,7 @@ const { execSync } = require('child_process');
         } catch (err) {
           console.log(`Error: ${err.message}`);
         }
-        if (attempt < 4) {
+        if (attempt < 15) {
           console.log(`Waiting 5s before retry...`);
           await page.waitForTimeout(5000);
         }
@@ -214,22 +214,6 @@ const { execSync } = require('child_process');
     accounts.push({ email, password });
     fs.writeFileSync('FB_account.json', JSON.stringify(accounts, null, 2));
     console.log(`Appended credentials to FB_account.json`);
-
-    // === OPEN PROFILE PAGE ===
-    const profileUrl = 'https://www.facebook.com/profile.php?id=61581353993309';
-    console.log(`Opening profile: ${profileUrl}`);
-    await page.goto(profileUrl, { waitUntil: 'networkidle', timeout: 30000 });
-
-    // === CLICK FOLLOW BUTTON ===
-    console.log(`Looking for Follow button...`);
-    try {
-      await page.waitForSelector('span:has-text("Follow")', { state: 'visible', timeout: 15000 });
-      await page.click('span:has-text("Follow")');
-      await delay(1000);
-      console.log(`Clicked Follow`);
-    } catch (e) {
-      console.log(`Follow button not found or already followed`);
-    }
 
     // === FINAL SUCCESS ===
     console.log(`\n=== ACCOUNT CREATED, SAVED & FOLLOWED ===`);
