@@ -50,6 +50,43 @@ console.log(`Loaded ${validUAs.length} valid modern desktop UAs.`);
     }
   };
 
+  // === HELPER: SAVE EMAIL TO FB_invalid.json ===
+  const markEmailAsInvalid = (email) => {
+    const invalidPath = path.resolve(__dirname, 'FB_invalid.json');
+    let invalidEmails = [];
+
+    if (fs.existsSync(invalidPath)) {
+      try {
+        const data = fs.readFileSync(invalidPath, 'utf8');
+        invalidEmails = JSON.parse(data);
+        if (!Array.isArray(invalidEmails)) invalidEmails = [];
+      } catch (e) {
+        console.log('FB_invalid.json corrupted, resetting...');
+        invalidEmails = [];
+      }
+    }
+
+    if (!invalidEmails.includes(email)) {
+      invalidEmails.push(email);
+      fs.writeFileSync(invalidPath, JSON.stringify(invalidEmails, null, 2), 'utf8');
+      console.log(`Email marked as invalid and saved to FB_invalid.json: ${email}`);
+    }
+  };
+
+  // === HELPER: LOAD INVALID EMAILS ===
+  const loadInvalidEmails = () => {
+    const invalidPath = path.resolve(__dirname, 'FB_invalid.json');
+    if (!fs.existsSync(invalidPath)) return new Set();
+
+    try {
+      const data = JSON.parse(fs.readFileSync(invalidPath, 'utf8'));
+      return Array.isArray(data) ? new Set(data) : new Set();
+    } catch (e) {
+      console.log('Failed to read FB_invalid.json, treating as empty.');
+      return new Set();
+    }
+  };
+
   try {
     const fbAccountPath = path.resolve(__dirname, 'FB_account.json');
     const fbLoginPath = path.resolve(__dirname, 'FB_login.json');
@@ -74,7 +111,7 @@ console.log(`Loaded ${validUAs.length} valid modern desktop UAs.`);
       throw new Error('Failed preparing FB_login.json: ' + err.message);
     }
 
-    // === LOAD EXISTING EMAILS FROM fb_profile.json ===
+    // === LOAD EXISTING EMAILS FROM fb_profile.json AND FB_invalid.json ===
     let processedEmails = new Set();
     if (fs.existsSync(fbProfilePath)) {
       try {
@@ -87,12 +124,17 @@ console.log(`Loaded ${validUAs.length} valid modern desktop UAs.`);
       }
     }
 
-    // === FILTER OUT ALREADY PROCESSED ACCOUNTS ===
-    const availableAccounts = fbLoginArr.filter(acc => !processedEmails.has(acc.email));
+    const invalidEmails = loadInvalidEmails();
+
+    // === FILTER OUT ALREADY PROCESSED + INVALID ACCOUNTS ===
+    const availableAccounts = fbLoginArr.filter(acc => 
+      !processedEmails.has(acc.email) && 
+      !invalidEmails.has(acc.email)
+    );
     
     // === RECOPY FB_account.json → FB_login.json IF NO ACCOUNTS LEFT ===
     if (availableAccounts.length === 0) {
-      console.log('No new accounts to process. Recopying FB_account.json to FB_login.json...');
+      console.log('No new valid accounts to process. Recopying FB_account.json to FB_login.json...');
       const data = fs.readFileSync(fbAccountPath, 'utf8');
       fs.writeFileSync(fbLoginPath, data, 'utf8');
       console.log('Recopy complete. Ready for next cycle.');
@@ -180,6 +222,7 @@ console.log(`Loaded ${validUAs.length} valid modern desktop UAs.`);
     const currentProfileUrl = page.url();
     if (!currentProfileUrl.includes('profile.php')) {
       console.log(`Not on profile page. Current URL: ${currentProfileUrl}. Exiting.`);
+      markEmailAsInvalid(email);  // ← NEW: Save to FB_invalid.json
       await cleanup();
       return;
     }

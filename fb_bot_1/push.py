@@ -25,6 +25,7 @@ FILES_TO_UPLOAD = {
     "FB_account.json": "fb_bot_1/FB_account.json",
     "fb_profile.json": "fb_bot_1/fb_profile.json",
     "FB_login.json": "fb_bot_1/Fb_login.json",
+    "FB_invalid.json": "fb_bot_1/Fb_invalid.json",
 }
 
 API_URL = f"https://api.github.com/repos/{USERNAME}/{REPO}/contents"
