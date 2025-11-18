@@ -1,7 +1,7 @@
 const { exec } = require('child_process');
 
 const scripts = ['main.js'];
-const totalRunsPerScript = 1;        // main.js repeats
+const totalRunsPerScript = 5;        // main.js repeats
 const timeoutMs = 10 * 60 * 1000;
 const delayBetweenRuns = 2000;
 
