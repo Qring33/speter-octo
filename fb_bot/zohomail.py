@@ -4,13 +4,13 @@
 
 import random, sys, imaplib, email, re
 from email.header import decode_header
-from email.utils import parsedate_tz, mktime_tz
 
 # === CONFIG ===
 GMAIL_EMAIL = "sinnerman334@gmail.com"
-GMAIL_PASS  = "qeyy mnsd prjq tiuj"
+GMAIL_PASS  = "ftvy upoo eqnz kihg"
 DOMAIN      = "wixnation.com"
 NAMES_FILE  = "name.txt"
+FACEBOOK_SENDER = "registration@facebookmail.com"
 
 # === LOAD NAMES ===
 def load_names():
@@ -49,56 +49,48 @@ def norm(addr):
             addr = addr[s+1:e]
     return addr.strip('"<> ')
 
+# === DECODE HEADER ===
+def decode_value(val):
+    if not val:
+        return ""
+    decoded = ""
+    for part, encoding in decode_header(val):
+        if isinstance(part, bytes):
+            decoded += part.decode(encoding or "utf-8", errors="ignore")
+        else:
+            decoded += part
+    return decoded
+
 # === GET EMAIL BODY ===
 def get_body(msg):
     body = ""
     if msg.is_multipart():
         for part in msg.walk():
-            if part.get_content_type() == "text/plain":
-                pl = part.get_payload(decode=True)
-                if pl:
-                    body = pl.decode(errors="ignore")
-                    break
-        if not body:
-            for part in msg.walk():
-                if part.get_content_type() == "text/html":
-                    pl = part.get_payload(decode=True)
-                    if pl:
-                        body = pl.decode(errors="ignore")
-                    break
+            content_type = part.get_content_type()
+            if content_type in ["text/plain", "text/html"]:
+                payload = part.get_payload(decode=True)
+                if payload:
+                    body += payload.decode(errors="ignore") + "\n"
     else:
-        pl = msg.get_payload(decode=True)
-        if pl:
-            body = pl.decode(errors="ignore")
-    return body
-
-# === GET RECIPIENT HEADERS ===
-def get_recipient(msg):
-    headers = []
-    for h in ["To", "Delivered-To", "X-Original-To"]:
-        val = msg.get(h)
-        if val:
-            decoded = "".join(
-                p.decode(c or "utf-8", errors="ignore") if isinstance(p, bytes) else p
-                for p, c in decode_header(val)
-            )
-            headers.append(decoded)
-    return headers
+        payload = msg.get_payload(decode=True)
+        if payload:
+            body = payload.decode(errors="ignore")
+    return body.strip()
 
 # === EXTRACT OTP FROM BODY ===
 def extract_otp(body):
-    # First: FB-XXXXX (even if glued like FB-20129Don't)
+    # Match FB-XXXXX pattern
     fb = re.search(r'FB[-–][\s-]*(\d{5,8})', body, re.IGNORECASE)
     if fb:
         return fb.group(1)
-    # Fallback: any 5-8 digit number
+    # fallback: any 5-8 digit number
     num = re.search(r'\b\d{5,8}\b', body)
     if num:
         return num.group()
     return None
 
-# === CHECK ONE FOLDER FOR LATEST EMAIL ===
-def check_folder(mail, folder, target_norm):
+# === CHECK ONE FOLDER FOR FACEBOOK EMAIL ===
+def check_folder(mail, folder, target_email):
     try:
         status, _ = mail.select(f'"{folder}"', readonly=True)
         if status != "OK":
@@ -106,39 +98,44 @@ def check_folder(mail, folder, target_norm):
     except:
         return None
 
-    status, data = mail.search(None, "ALL")
+    # Search last 10 emails from Facebook sender
+    status, data = mail.search(None, f'(FROM "{FACEBOOK_SENDER}")')
     if status != "OK" or not data[0]:
         return None
+
     uids = data[0].split()
     if not uids:
         return None
 
-    # Get only the newest email
-    uid = uids[-1]
-    status, msg_data = mail.fetch(uid, "(RFC822)")
-    if status != "OK":
-        return None
-    msg = email.message_from_bytes(msg_data[0][1])
+    # Iterate over last 10 emails, newest first
+    for uid in reversed(uids[-10:]):
+        status, msg_data = mail.fetch(uid, "(RFC822)")
+        if status != "OK":
+            continue
 
-    # Check if email is for target
-    headers = get_recipient(msg)
-    matched = any(target_norm in norm(a) for hdr in headers for a in re.split(r'[,\n]', hdr))
-    if not matched:
-        return None
+        msg = email.message_from_bytes(msg_data[0][1])
 
-    body = get_body(msg)
-    return extract_otp(body)
+        # Confirm it was sent to the target email
+        to_header = decode_value(msg.get("To"))
+        if target_email.lower() not in norm(to_header):
+            continue
+
+        body = get_body(msg)
+        otp = extract_otp(body)
+        if otp:
+            return otp
+
+    return None
 
 # === MAIN INBOX COMMAND ===
 def get_verification_code(target_email):
-    target_norm = norm(target_email)
     try:
         mail = imaplib.IMAP4_SSL("imap.gmail.com")
         mail.login(GMAIL_EMAIL, GMAIL_PASS)
 
-        # Check only INBOX and Spam
+        # Check INBOX and Spam
         for folder in ["INBOX", "[Gmail]/Spam"]:
-            code = check_folder(mail, folder, target_norm)
+            code = check_folder(mail, folder, target_email)
             if code:
                 mail.logout()
                 print(code)
@@ -146,7 +143,7 @@ def get_verification_code(target_email):
 
         mail.logout()
         print("OTP not found")
-    except:
+    except Exception as e:
         print("OTP not found")
 
 # === MAIN ===
@@ -154,7 +151,9 @@ if __name__ == "__main__":
     if len(sys.argv) < 2:
         print("OTP not found", file=sys.stderr)
         sys.exit(1)
+
     cmd = sys.argv[1]
+
     if cmd == "new":
         print(generate_email())
         print(generate_password())
